@@ -1,0 +1,71 @@
+.book-ui {
+    -fx-background-color: #f2f2f2;
+}
+
+.label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #333;
+    -fx-font-size: 16px;
+}
+
+.text-field {
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+}
+
+.button {
+    -fx-background-color: #7b2cbf; /* Deep purple */
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10;
+    -fx-padding: 10 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 2);
+}
+
+.button:hover {
+            -fx-background-color: #5a189a;
+}
+
+.text-area {
+    -fx-control-inner-background: #fff;
+    -fx-font-family: "Courier New";
+}
+
+.dashboard-button{
+    -fx-background-color: #7b2cbf; /* Deep purple */
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10;
+    -fx-padding: 10 20;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 4, 0, 0, 2);
+}
+
+.dashboard-button:hover {
+    -fx-background-color: #5a189a;
+}
+
+/* the rest of the backgrounds*/
+.book-ui-bg {
+    -fx-background-image: url("/pics/book.png");
+    -fx-background-size: cover;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center;
+}
+
+.student-ui-bg {
+    -fx-background-image: url("/pics/student.png");
+    -fx-background-size: cover;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center;
+}
+
+.loan-ui-bg {
+    -fx-background-image: url("/pics/loan.png");
+    -fx-background-size: cover;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position: center center;
+}
