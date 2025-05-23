@@ -7,56 +7,85 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 public class LoanDao {
 
 
     private static final Connection conn = DBConnection.connect();
+    private static final DateTimeFormatter DB_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private static boolean decrease_book_qty(int laonId, int book_id){
-        int available_qty ;
-        String sql = "UPDATE BOOK SET available_quantity = ? WHERE BOOK_ID = ? ";
-        String qu = "SELECT available_quantity FROM book WHERE book_id = ? ";
-        try(PreparedStatement ps = conn.prepareStatement(qu);){
-            ps.setInt(1,book_id);
+
+    private static boolean decrease_book_qty(int loanId, int book_id) {
+        String sql = "UPDATE BOOK SET available_quantity = ? WHERE BOOK_ID = ?";
+        String qu = "SELECT available_quantity FROM book WHERE book_id = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(qu)) {
+            ps.setInt(1, book_id);
             ResultSet rs = ps.executeQuery();
-            available_qty = rs.getInt("available_quantity") - 1;
-            PreparedStatement stm = conn.prepareStatement(sql);
-            stm.setInt(1,available_qty);
-            stm.setInt(2,book_id);
-            return stm.executeUpdate() > 0 ;
+
+            // Check if result set has data
+            if (!rs.next()) {
+                System.err.println("No book found with ID: " + book_id);
+                return false;
+            }
+
+            int available_qty = rs.getInt("available_quantity") - 1;
+
+            try (PreparedStatement stm = conn.prepareStatement(sql)) {
+                stm.setInt(1, available_qty);
+                stm.setInt(2, book_id);
+                return stm.executeUpdate() > 0;
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("Error decreasing book quantity: " + e.getMessage());
             return false;
         }
     }
 
-    private static boolean increase_book_qty(int laonId){
-        int available_qty ;
+    private static boolean increase_book_qty(int loanId) {
+        String sql = "UPDATE BOOK SET available_quantity = ? WHERE BOOK_ID = ?";
+        String sql2 = "SELECT b.book_id FROM book b, loan l WHERE l.book_id = b.book_id and l.loan_id = ?";
+        String sql3 = "SELECT available_quantity FROM book WHERE book_id = ?";
+
         int book_id;
-        String sql = "UPDATE BOOK SET available_quantity = ? WHERE BOOK_ID = ? ";
-        String sql2 = "SELECT b.book_id FROM book b, loan l WHERE l.book_id = b.book_id and l.loan_id = ?  ";
-        String sql3 = "SELECT available_quantity FROM book WHERE book_id = ? ";
-        try (PreparedStatement ps2 = conn.prepareStatement(sql2);
-        ){
-            ps2.setInt(1, laonId);
+
+        // First get the book ID from the loan
+        try (PreparedStatement ps2 = conn.prepareStatement(sql2)) {
+            ps2.setInt(1, loanId);
             ResultSet rs = ps2.executeQuery();
+
+            if (!rs.next()) {
+                System.err.println("No loan found with ID: " + loanId);
+                return false;
+            }
+
             book_id = rs.getInt("book_id");
         } catch (SQLException e) {
-            e.printStackTrace();
-            System.out.println("book id not found");
-            return false ;
+            System.err.println("Error getting book ID from loan: " + e.getMessage());
+            return false;
         }
-        try(PreparedStatement pstmt = conn.prepareStatement(sql3);){
-            pstmt.setInt(1,book_id);
+
+        // Then update the quantity
+        try (PreparedStatement pstmt = conn.prepareStatement(sql3)) {
+            pstmt.setInt(1, book_id);
             ResultSet rs = pstmt.executeQuery();
-            available_qty = rs.getInt("available_quantity") - 1;
-            PreparedStatement stm = conn.prepareStatement(sql);
-            stm.setInt(1,available_qty);
-            stm.setInt(2,book_id);
-            return stm.executeUpdate() > 0 ;
+
+            if (!rs.next()) {
+                System.err.println("No book found with ID: " + book_id);
+                return false;
+            }
+
+            int available_qty = rs.getInt("available_quantity") + 1; // Note: Changed to +1 for return
+
+            try (PreparedStatement stm = conn.prepareStatement(sql)) {
+                stm.setInt(1, available_qty);
+                stm.setInt(2, book_id);
+                return stm.executeUpdate() > 0;
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("Error increasing book quantity: " + e.getMessage());
             return false;
         }
     }
@@ -97,21 +126,39 @@ public class LoanDao {
         }
     }
 
-    public static boolean InsertLoan(Loan loan){
-        String sql = "INSERT INTO LOAN VALUES(? ,? ,? ,? ,? ,? ,? )";
-        try(PreparedStatement pstmt = conn.prepareStatement(sql);){
-            pstmt.setInt(1,loan.getLoanId());
-            pstmt.setInt(2,loan.getStudentId());
-            pstmt.setInt(3,loan.getIdBook());
-            pstmt.setString(4,loan.getLoanDate());
-            pstmt.setString(5,loan.getStringExpectedReturnDate());
-            pstmt.setString(6,loan.getActualReturnDate());
-            pstmt.setString(7,"In progress");
+    public static boolean InsertLoan(Loan loan) {
+        String sql = "INSERT INTO LOAN (loan_id, student_id, book_id, loan_date, expected_return_date, actual_return_date, statuts) " +
+                "VALUES (?, ?, ?, TO_DATE(?, 'YYYY-MM-DD'), TO_DATE(?, 'YYYY-MM-DD'), TO_DATE(?, 'YYYY-MM-DD'), ?)";
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            // Validate and parse dates
+            LocalDate loanDate = LocalDate.parse(loan.getLoanDate(), DB_DATE_FORMAT);
+            LocalDate expectedDate = LocalDate.parse(loan.getStringExpectedReturnDate(), DB_DATE_FORMAT);
+
+            pstmt.setInt(1, loan.getLoanId());
+            pstmt.setInt(2, loan.getStudentId());
+            pstmt.setInt(3, loan.getIdBook());
+            pstmt.setString(4, loan.getLoanDate());  // Will be formatted as YYYY-MM-DD
+            pstmt.setString(5, loan.getStringExpectedReturnDate());
+
+            // Handle actual return date (might be null)
+            if (loan.getActualReturnDate() != null && !loan.getActualReturnDate().isEmpty()) {
+                LocalDate actualDate = LocalDate.parse(loan.getActualReturnDate(), DB_DATE_FORMAT);
+                pstmt.setString(6, loan.getActualReturnDate());
+            } else {
+                pstmt.setNull(6, Types.DATE);
+            }
+
+            pstmt.setString(7, "In progress");
+
+            // Decrease book quantity
             decrease_book_qty(loan.getLoanId(), loan.getIdBook());
+
             return pstmt.executeUpdate() > 0;
-        }catch(SQLException e){
+        } catch (Exception e) {
+            System.err.println("Error inserting loan: " + e.getMessage());
             e.printStackTrace();
-            return false ;
+            return false;
         }
     }
 
